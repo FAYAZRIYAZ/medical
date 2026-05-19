@@ -1,35 +1,38 @@
+import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { ArrowLeft, Calendar, FileText, FlaskConical, DollarSign } from 'lucide-react';
-import { usePatient } from '@/hooks/usePatients';
+import { ArrowLeft, Calendar, FileText, FlaskConical, DollarSign, Pencil } from 'lucide-react';
+import { useForm } from 'react-hook-form';
+import { usePatient, useUpdatePatient } from '@/hooks/usePatients';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { initials, calculateAge, formatCurrency } from '@/lib/utils';
+import { toast } from 'sonner';
+
+interface PatientEditForm {
+  firstName: string;
+  lastName: string;
+  phone: string;
+  email: string;
+  gender: string;
+  bloodGroup: string;
+  'address.line1': string;
+  'address.city': string;
+  'address.state': string;
+  'address.pincode': string;
+}
 
 export function PatientDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: patient, isLoading } = usePatient(id!);
-
-  if (isLoading) {
-    return (
-      <div className="p-6 space-y-4">
-        <Skeleton className="h-8 w-64" />
-        <Skeleton className="h-48" />
-      </div>
-    );
-  }
-
-  if (!patient) {
-    return (
-      <div className="p-6 text-center py-16">
-        <p className="text-lg font-medium">Patient not found</p>
-        <Link to="/patients"><Button className="mt-4" variant="outline">Back to Patients</Button></Link>
-      </div>
-    );
-  }
+  const [editOpen, setEditOpen] = useState(false);
+  const update = useUpdatePatient(id!);
 
   const p = patient as {
     _id: string; firstName: string; lastName: string; uhid: string; dateOfBirth: string; gender: string; bloodGroup: string;
@@ -40,7 +43,67 @@ export function PatientDetailPage() {
     prescriptions?: { _id: string; date: string; doctorName: string; medications: number }[];
     labOrders?: { _id: string; testName: string; date: string; status: string }[];
     invoices?: { _id: string; invoiceNo: string; total: number; status: string; date: string }[];
+  } | undefined;
+
+  const { register, handleSubmit, setValue, reset } = useForm<PatientEditForm>();
+
+  const openEdit = () => {
+    if (!p) return;
+    reset({
+      firstName: p.firstName,
+      lastName: p.lastName,
+      phone: p.phone,
+      email: p.email ?? '',
+      gender: p.gender,
+      bloodGroup: p.bloodGroup ?? '',
+      'address.line1': p.address?.line1 ?? '',
+      'address.city': p.address?.city ?? '',
+      'address.state': p.address?.state ?? '',
+      'address.pincode': p.address?.pincode ?? '',
+    });
+    setEditOpen(true);
   };
+
+  const onSubmit = (data: PatientEditForm) => {
+    const payload = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      phone: data.phone,
+      email: data.email || undefined,
+      gender: data.gender as 'male' | 'female' | 'other' | 'prefer_not_to_say',
+      bloodGroup: data.bloodGroup || undefined,
+      address: {
+        line1: data['address.line1'],
+        city: data['address.city'],
+        state: data['address.state'],
+        pincode: data['address.pincode'],
+      },
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    update.mutate(payload as any, {
+      onSuccess: () => { toast.success('Patient updated'); setEditOpen(false); },
+      onError: () => toast.error('Failed to update patient'),
+    });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="p-6 space-y-4">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-48" />
+      </div>
+    );
+  }
+
+  if (!p) {
+    return (
+      <div className="p-6 text-center py-16">
+        <p className="text-lg font-medium">Patient not found</p>
+        <Link to="/patients"><Button className="mt-4" variant="outline">Back to Patients</Button></Link>
+      </div>
+    );
+  }
+
   const firstContact = p.emergencyContacts?.[0];
 
   return (
@@ -53,6 +116,9 @@ export function PatientDetailPage() {
           <h1 className="text-2xl font-bold text-gray-900">{p.firstName} {p.lastName}</h1>
           <p className="text-sm text-muted-foreground">{p.uhid}</p>
         </div>
+        <Button variant="outline" className="gap-2" onClick={openEdit}>
+          <Pencil className="h-4 w-4" /> Edit Patient
+        </Button>
         <Link to={`/appointments/new?patientId=${p._id}`}>
           <Button className="gap-2 bg-medical-blue hover:bg-medical-blue/90">
             <Calendar className="h-4 w-4" /> Book Appointment
@@ -126,7 +192,7 @@ export function PatientDetailPage() {
                         <p className="text-sm font-medium">{apt.doctorName}</p>
                         <p className="text-xs text-muted-foreground">{new Date(apt.date).toLocaleDateString()}</p>
                       </div>
-                      <Badge variant={apt.status === 'completed' ? 'success' : 'secondary'}>{apt.status}</Badge>
+                      <Badge variant={apt.status === 'completed' ? 'default' : 'secondary'}>{apt.status}</Badge>
                     </div>
                   ))}
                 </div>
@@ -173,7 +239,7 @@ export function PatientDetailPage() {
                           <p className="text-sm font-medium">{o.testName}</p>
                           <p className="text-xs text-muted-foreground">{new Date(o.date).toLocaleDateString()}</p>
                         </div>
-                        <Badge variant={o.status === 'verified' ? 'success' : 'secondary'}>{o.status}</Badge>
+                        <Badge variant={o.status === 'verified' ? 'default' : 'secondary'}>{o.status}</Badge>
                       </div>
                     </Link>
                   ))}
@@ -203,7 +269,7 @@ export function PatientDetailPage() {
                         </div>
                         <div className="text-right">
                           <p className="text-sm font-semibold">{formatCurrency(inv.total)}</p>
-                          <Badge variant={inv.status === 'paid' ? 'success' : inv.status === 'partial' ? 'warning' : 'destructive'}>{inv.status}</Badge>
+                          <Badge variant={inv.status === 'paid' ? 'default' : inv.status === 'partial' ? 'secondary' : 'destructive'}>{inv.status}</Badge>
                         </div>
                       </div>
                     </Link>
@@ -214,6 +280,83 @@ export function PatientDetailPage() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={editOpen} onOpenChange={setEditOpen}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Edit Patient</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 mt-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">First Name</label>
+                <Input {...register('firstName', { required: true })} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Last Name</label>
+                <Input {...register('lastName', { required: true })} />
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Phone</label>
+              <Input {...register('phone', { required: true })} />
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Email</label>
+              <Input {...register('email')} type="email" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">Gender</label>
+                <Select defaultValue={p.gender} onValueChange={(v) => setValue('gender', v)}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="male">Male</SelectItem>
+                    <SelectItem value="female">Female</SelectItem>
+                    <SelectItem value="other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Blood Group</label>
+                <Select defaultValue={p.bloodGroup ?? ''} onValueChange={(v) => setValue('bloodGroup', v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    {['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-'].map((bg) => (
+                      <SelectItem key={bg} value={bg}>{bg}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-1 block">Address Line 1</label>
+              <Input {...register('address.line1')} />
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-sm font-medium mb-1 block">City</label>
+                <Input {...register('address.city')} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">State</label>
+                <Input {...register('address.state')} />
+              </div>
+              <div>
+                <label className="text-sm font-medium mb-1 block">Pincode</label>
+                <Input {...register('address.pincode')} />
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>Cancel</Button>
+              <Button type="submit" disabled={update.isPending} className="bg-medical-blue hover:bg-medical-blue/90">
+                {update.isPending ? 'Saving…' : 'Save Changes'}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

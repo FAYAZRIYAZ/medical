@@ -138,6 +138,21 @@ router.get('/admissions/:id', requirePermission('ipd:read'), async (req: Request
   sendSuccess(res, admission);
 });
 
+router.patch('/admissions/:id', requirePermission('ipd:update'), async (req: Request, res: Response) => {
+  const allowed = ['diagnosis', 'attendingNotes', 'finalDiagnosis', 'admissionReason', 'estimatedStay', 'referredBy', 'notes', 'attendingDoctorId'];
+  const update: Record<string, unknown> = {};
+  for (const key of allowed) {
+    if (req.body[key] !== undefined) update[key] = req.body[key];
+  }
+  const updated = await AdmissionModel.findOneAndUpdate(
+    { _id: req.params['id'], tenantId: req.tenantId },
+    { $set: update },
+    { new: true }
+  ).populate('patientId', 'firstName lastName uhid').populate('wardId', 'name type').populate('bedId', 'bedNumber').lean();
+  if (!updated) throw new NotFoundError('Admission');
+  sendSuccess(res, updated);
+});
+
 router.post('/admissions/:id/discharge', requirePermission('ipd:discharge'), validate(DischargePatientSchema.omit({ admissionId: true })), async (req: Request, res: Response) => {
   const admission = await AdmissionModel.findOne({ _id: req.params['id'], tenantId: req.tenantId, status: 'active' }).lean();
   if (!admission) throw new NotFoundError('Active admission');

@@ -47,7 +47,7 @@ export function IPDPage() {
         </div>
         <div className="flex gap-2">
           <Link to="/ipd/wards"><Button variant="outline">Ward Map</Button></Link>
-          <Link to="/appointments/new">
+          <Link to="/ipd/new">
             <Button className="gap-2 bg-medical-blue hover:bg-medical-blue/90"><Plus className="h-4 w-4" />Admit Patient</Button>
           </Link>
         </div>

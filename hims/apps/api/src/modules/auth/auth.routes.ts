@@ -1,7 +1,11 @@
 import { Router } from 'express';
+import type { Request, Response } from 'express';
+import mongoose from 'mongoose';
 import { authController } from './auth.controller.js';
 import { validate } from '../../middleware/validate.js';
 import { authenticate } from '../../middleware/auth.js';
+import { tenantContext } from '../../middleware/tenant.js';
+import { sendSuccess } from '../../utils/response.js';
 import { loginRateLimit, otpRateLimit, passwordResetRateLimit } from '../../middleware/rateLimiter.js';
 import {
   LoginSchema,
@@ -38,5 +42,20 @@ router.post('/2fa/disable', authenticate, validate(TotpVerifySchema), (req, res)
 router.post('/2fa/verify', validate(TotpVerifySchema), (req, res) => authController.verify2fa(req, res));
 router.get('/verify-email/:token', (req, res) => authController.verifyEmail(req, res));
 router.get('/me', authenticate, (req, res) => authController.me(req, res));
+
+// List staff/users within a tenant (used by chat to start conversations)
+router.get('/users', authenticate, tenantContext, async (req: Request, res: Response) => {
+  const UserModel = mongoose.model('User');
+  const { q = '', role } = req.query as { q?: string; role?: string };
+  const filter: Record<string, unknown> = { tenantId: req.tenantId, isActive: true, _id: { $ne: req.user!._id } };
+  if (role) filter['role'] = role;
+  if (q) filter['$or'] = [
+    { firstName: { $regex: q, $options: 'i' } },
+    { lastName: { $regex: q, $options: 'i' } },
+    { email: { $regex: q, $options: 'i' } },
+  ];
+  const users = await UserModel.find(filter).select('firstName lastName email role avatar').limit(30).lean();
+  sendSuccess(res, users);
+});
 
 export default router;

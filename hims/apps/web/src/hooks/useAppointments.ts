@@ -74,12 +74,20 @@ export function useUpdateAppointment(id: string) {
   });
 }
 
+export interface DoctorSlot {
+  id: string;
+  time: string;
+  endTime: string;
+  tokenNumber: number;
+  isBooked: boolean;
+}
+
 export function useDoctorSlots(doctorId: string, date: string) {
   return useQuery({
     queryKey: ['doctors', doctorId, 'slots', date],
     queryFn: async () => {
-      const res = await api.get<{ success: boolean; data: string[] }>(`/doctors/${doctorId}/slots`, { params: { date } });
-      return res.data.data;
+      const res = await api.get<{ success: boolean; data: { slots: DoctorSlot[]; date: string; doctorId: string } }>(`/doctors/${doctorId}/slots`, { params: { date } });
+      return res.data.data.slots ?? [];
     },
     enabled: Boolean(doctorId) && Boolean(date),
   });

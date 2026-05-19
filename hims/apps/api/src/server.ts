@@ -152,20 +152,28 @@ app.use(errorHandler);
 async function start(): Promise<void> {
   try {
     await connectDatabase();
-    await connectRedis();
-    await verifyEmailConnection();
-
-    initSocket(httpServer);
-
-    httpServer.listen(env.PORT, () => {
-      logger.info(`🏥 HIMS API running on port ${env.PORT} [${env.NODE_ENV}]`);
-      logger.info(`📚 Swagger: http://localhost:${env.PORT}/api/docs`);
-      logger.info(`🎯 BullBoard: http://localhost:${env.PORT}/admin/queues`);
-    });
   } catch (err) {
-    logger.error('Failed to start server', { error: String(err) });
+    logger.error('Failed to connect to MongoDB — cannot start', { error: String(err) });
     process.exit(1);
   }
+
+  // Redis is optional — server starts without it (cache/queues disabled)
+  await connectRedis();
+
+  // Email is optional — server starts without it (email sending disabled)
+  try {
+    await verifyEmailConnection();
+  } catch (err) {
+    logger.warn('Email service unavailable — emails will not be sent', { error: String(err) });
+  }
+
+  initSocket(httpServer);
+
+  httpServer.listen(env.PORT, () => {
+    logger.info(`🏥 HIMS API running on port ${env.PORT} [${env.NODE_ENV}]`);
+    logger.info(`📚 Swagger: http://localhost:${env.PORT}/api/docs`);
+    logger.info(`🎯 BullBoard: http://localhost:${env.PORT}/admin/queues`);
+  });
 }
 
 process.on('SIGTERM', async () => {

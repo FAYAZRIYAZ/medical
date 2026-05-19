@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { INVOICE_STATUS, PAYMENT_METHOD } from '../constants.js';
 
 export const InvoiceItemSchema = z.object({
-  serviceId: z.string().min(1),
+  serviceId: z.string().optional(),
   serviceName: z.string().min(1),
   category: z.enum(['consultation', 'procedure', 'lab', 'pharmacy', 'room_rent', 'surgery', 'radiology', 'nursing', 'other']),
   quantity: z.number().int().positive().default(1),

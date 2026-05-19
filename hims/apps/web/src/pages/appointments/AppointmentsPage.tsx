@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Plus, Calendar } from 'lucide-react';
-import { useAppointments } from '@/hooks/useAppointments';
+import { Plus, Calendar, Pencil, X } from 'lucide-react';
+import { useAppointments, useUpdateAppointment } from '@/hooks/useAppointments';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Textarea } from '@/components/ui/textarea';
 import { APPOINTMENT_STATUS, type AppointmentStatus } from '@hims/shared';
 import { formatDate } from '@/lib/utils';
+import { toast } from 'sonner';
 
 interface Appointment {
   _id: string;
@@ -18,22 +21,114 @@ interface Appointment {
   appointmentDate: string;
   type: string;
   status: AppointmentStatus;
+  chiefComplaint?: string;
+  notes?: string;
 }
 
-const statusVariant: Record<AppointmentStatus, 'default' | 'secondary' | 'success' | 'warning' | 'destructive'> = {
+const statusVariant: Record<AppointmentStatus, 'default' | 'secondary' | 'warning' | 'destructive'> = {
   scheduled: 'secondary',
   confirmed: 'default',
   checked_in: 'warning',
   in_progress: 'default',
-  completed: 'success',
+  completed: 'default',
   cancelled: 'destructive',
   no_show: 'destructive',
   rescheduled: 'secondary',
 };
 
+const EDITABLE_STATUSES: AppointmentStatus[] = [
+  APPOINTMENT_STATUS.CONFIRMED,
+  APPOINTMENT_STATUS.CHECKED_IN,
+  APPOINTMENT_STATUS.IN_PROGRESS,
+  APPOINTMENT_STATUS.COMPLETED,
+  APPOINTMENT_STATUS.CANCELLED,
+  APPOINTMENT_STATUS.NO_SHOW,
+];
+
+function EditAppointmentDialog({ apt, onClose }: { apt: Appointment; onClose: () => void }) {
+  const [status, setStatus] = useState<AppointmentStatus>(apt.status);
+  const [notes, setNotes] = useState(apt.notes ?? '');
+  const [cancellationReason, setCancellationReason] = useState('');
+  const update = useUpdateAppointment(apt._id);
+
+  const save = () => {
+    update.mutate(
+      { status, notes: notes || undefined, cancellationReason: cancellationReason || undefined },
+      {
+        onSuccess: () => { toast.success('Appointment updated'); onClose(); },
+        onError: () => toast.error('Failed to update appointment'),
+      }
+    );
+  };
+
+  const patientName = typeof apt.patientId === 'object'
+    ? `${apt.patientId.firstName} ${apt.patientId.lastName}`
+    : apt.patientId;
+  const doctorName = typeof apt.doctorId === 'object'
+    ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}`
+    : apt.doctorId;
+
+  return (
+    <DialogContent className="max-w-md">
+      <DialogHeader>
+        <DialogTitle>Edit Appointment</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4 mt-2">
+        <div className="rounded-lg bg-muted/40 p-3 space-y-1">
+          <p className="text-sm font-medium">{patientName}</p>
+          <p className="text-xs text-muted-foreground">{doctorName} · {formatDate(apt.appointmentDate)}</p>
+          {apt.chiefComplaint && <p className="text-xs text-muted-foreground">CC: {apt.chiefComplaint}</p>}
+        </div>
+
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Status</label>
+          <Select value={status} onValueChange={(v) => setStatus(v as AppointmentStatus)}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {EDITABLE_STATUSES.map((s) => (
+                <SelectItem key={s} value={s}>{s.replace(/_/g, ' ')}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {(status === APPOINTMENT_STATUS.CANCELLED || status === APPOINTMENT_STATUS.NO_SHOW) && (
+          <div>
+            <label className="text-sm font-medium mb-1.5 block">Reason</label>
+            <Textarea
+              rows={2}
+              placeholder="Reason for cancellation..."
+              value={cancellationReason}
+              onChange={(e) => setCancellationReason(e.target.value)}
+            />
+          </div>
+        )}
+
+        <div>
+          <label className="text-sm font-medium mb-1.5 block">Internal Notes</label>
+          <Textarea
+            rows={3}
+            placeholder="Add notes..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
+        </div>
+
+        <div className="flex justify-end gap-3 pt-1">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={save} disabled={update.isPending} className="bg-medical-blue hover:bg-medical-blue/90">
+            {update.isPending ? 'Saving…' : 'Save Changes'}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  );
+}
+
 export function AppointmentsPage() {
   const [status, setStatus] = useState<AppointmentStatus | ''>('');
   const [page, setPage] = useState(1);
+  const [editingApt, setEditingApt] = useState<Appointment | null>(null);
 
   const { data, isLoading } = useAppointments({
     status: status ? status : undefined,
@@ -94,12 +189,37 @@ export function AppointmentsPage() {
                     </p>
                     <p className="text-sm text-muted-foreground truncate">
                       {typeof apt.doctorId === 'object' ? `Dr. ${apt.doctorId.firstName} ${apt.doctorId.lastName}` : apt.doctorId}
-                      {' · '}{formatDate(apt.appointmentDate)} at {new Date(apt.appointmentDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      {' · '}{formatDate(apt.appointmentDate)}
                     </p>
+                    {apt.chiefComplaint && (
+                      <p className="text-xs text-muted-foreground truncate mt-0.5">{apt.chiefComplaint}</p>
+                    )}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Badge variant="outline">{apt.type}</Badge>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <Badge variant="outline" className="text-xs">{apt.type.replace(/_/g, ' ')}</Badge>
                     <Badge variant={statusVariant[apt.status] ?? 'secondary'}>{apt.status.replace(/_/g, ' ')}</Badge>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 w-8 p-0"
+                      onClick={() => setEditingApt(apt)}
+                      title="Edit appointment"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                    </Button>
+                    {apt.status !== APPOINTMENT_STATUS.CANCELLED && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                        title="Cancel appointment"
+                        onClick={() => {
+                          setEditingApt({ ...apt, status: APPOINTMENT_STATUS.CANCELLED });
+                        }}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -115,6 +235,10 @@ export function AppointmentsPage() {
           )}
         </>
       )}
+
+      <Dialog open={!!editingApt} onOpenChange={(open) => { if (!open) setEditingApt(null); }}>
+        {editingApt && <EditAppointmentDialog apt={editingApt} onClose={() => setEditingApt(null)} />}
+      </Dialog>
     </div>
   );
 }

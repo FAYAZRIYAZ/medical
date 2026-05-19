@@ -20,14 +20,20 @@ router.use(authenticate, tenantContext);
 // Hospital Admin Dashboard
 router.get('/admin', requirePermission('admin:reports'), async (req: Request, res: Response) => {
   const tenantId = new mongoose.Types.ObjectId(req.tenantId!);
-  const cacheKey = `dashboard:admin:${req.tenantId!}`;
-  const cached = await cacheGet(cacheKey);
-  if (cached) { sendSuccess(res, cached); return; }
 
   const today = new Date();
-  const startOfDay = new Date(today.setHours(0, 0, 0, 0));
-  const endOfDay = new Date(today.setHours(23, 59, 59, 999));
+  const startOfDay = new Date(today); startOfDay.setHours(0, 0, 0, 0);
+  const endOfDay = new Date(today); endOfDay.setHours(23, 59, 59, 999);
   const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+
+  // Build last 7 days date range
+  const last7Days = Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() - (6 - i));
+    return d;
+  });
+
+  const { BedModel } = await import('../ipd/ipd.model.js');
 
   const [
     todayAppointments,
@@ -36,8 +42,12 @@ router.get('/admin', requirePermission('admin:reports'), async (req: Request, re
     monthRevenue,
     todayRevenue,
     pendingLabOrders,
-    lowStockCount,
+    lowStockRaw,
     totalPatients,
+    totalBeds,
+    recentAdmissionsRaw,
+    revenueByDayRaw,
+    apptByDeptRaw,
   ] = await Promise.all([
     AppointmentModel.countDocuments({ tenantId, appointmentDate: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: APPOINTMENT_STATUS.CANCELLED } }),
     AdmissionModel.countDocuments({ tenantId, status: 'active' }),
@@ -54,20 +64,62 @@ router.get('/admin', requirePermission('admin:reports'), async (req: Request, re
       { $count: 'count' },
     ]),
     PatientModel.countDocuments({ tenantId, isActive: true }),
+    BedModel.countDocuments({ tenantId }),
+    AdmissionModel.find({ tenantId, status: 'active' })
+      .populate('patientId', 'firstName lastName uhid')
+      .populate('wardId', 'name')
+      .sort({ admittedAt: -1 })
+      .limit(5)
+      .lean(),
+    PaymentModel.aggregate([
+      { $match: { tenantId, paidAt: { $gte: last7Days[0] }, status: 'completed' } },
+      { $group: { _id: { $dateToString: { format: '%Y-%m-%d', date: '$paidAt' } }, amount: { $sum: '$amount' } } },
+      { $sort: { _id: 1 } },
+    ]),
+    AppointmentModel.aggregate([
+      { $match: { tenantId, appointmentDate: { $gte: startOfDay, $lte: endOfDay }, status: { $ne: APPOINTMENT_STATUS.CANCELLED } } },
+      { $lookup: { from: 'departments', localField: 'departmentId', foreignField: '_id', as: 'dept' } },
+      { $unwind: { path: '$dept', preserveNullAndEmptyArrays: true } },
+      { $group: { _id: '$dept.name', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 6 },
+    ]),
   ]);
+
+  // Build revenue by day (fill missing days with 0)
+  const revenueMap = new Map((revenueByDayRaw as { _id: string; amount: number }[]).map((r) => [r._id, r.amount]));
+  const revenueByDay = last7Days.map((d) => ({
+    date: d.toLocaleDateString('en-US', { weekday: 'short' }),
+    amount: revenueMap.get(d.toISOString().split('T')[0]!) ?? 0,
+  }));
+
+  const recentAdmissions = (recentAdmissionsRaw as { patientId: { firstName: string; lastName: string; uhid: string } | null; wardId: { name: string } | null; admittedAt: Date }[]).map((a) => ({
+    name: a.patientId ? `${a.patientId.firstName} ${a.patientId.lastName}` : 'Unknown',
+    uhid: a.patientId?.uhid ?? '',
+    ward: (a.wardId as { name?: string } | null)?.name ?? '—',
+    admittedAt: a.admittedAt,
+  }));
+
+  const appointmentsByDept = (apptByDeptRaw as { _id: string | null; count: number }[]).map((a) => ({
+    department: a._id ?? 'General',
+    count: a.count,
+  }));
 
   const data = {
     todayAppointments,
-    activeAdmissions,
+    occupiedBeds: activeAdmissions,
+    totalBeds,
     todayNewPatients: todayPatients,
     totalPatients,
     todayRevenue: todayRevenue[0]?.total ?? 0,
     monthRevenue: monthRevenue[0]?.total ?? 0,
     pendingLabOrders,
-    lowStockCount: (lowStockCount[0] as { count?: number } | undefined)?.count ?? 0,
+    lowStockDrugs: (lowStockRaw[0] as { count?: number } | undefined)?.count ?? 0,
+    revenueByDay,
+    recentAdmissions,
+    appointmentsByDept,
   };
 
-  await cacheSet(cacheKey, data, 60);
   sendSuccess(res, data);
 });
 

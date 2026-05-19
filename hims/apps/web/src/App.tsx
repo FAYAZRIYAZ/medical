@@ -22,6 +22,7 @@ const OpdQueuePage = lazy(() => import('@/pages/appointments/OpdQueuePage').then
 const IPDPage = lazy(() => import('@/pages/ipd/IPDPage').then((m) => ({ default: m.IPDPage })));
 const IPDAdmissionDetailPage = lazy(() => import('@/pages/ipd/IPDAdmissionDetailPage').then((m) => ({ default: m.IPDAdmissionDetailPage })));
 const WardManagementPage = lazy(() => import('@/pages/ipd/WardManagementPage').then((m) => ({ default: m.WardManagementPage })));
+const NewIPDAdmissionPage = lazy(() => import('@/pages/ipd/NewIPDAdmissionPage').then((m) => ({ default: m.NewIPDAdmissionPage })));
 const PharmacyPage = lazy(() => import('@/pages/pharmacy/PharmacyPage').then((m) => ({ default: m.PharmacyPage })));
 const LabPage = lazy(() => import('@/pages/lab/LabPage').then((m) => ({ default: m.LabPage })));
 const LabOrderDetailPage = lazy(() => import('@/pages/lab/LabOrderDetailPage').then((m) => ({ default: m.LabOrderDetailPage })));
@@ -98,6 +99,7 @@ export default function App() {
 
             {/* IPD */}
             <Route path="/ipd" element={<IPDPage />} />
+            <Route path="/ipd/new" element={<NewIPDAdmissionPage />} />
             <Route path="/ipd/:id" element={<IPDAdmissionDetailPage />} />
             <Route
               path="/ipd/wards"
