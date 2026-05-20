@@ -64,7 +64,7 @@ export function NewAppointmentPage() {
       const res = await api.get<{ data: Patient[] }>('/patients', { params: { q: debouncedSearch, limit: 8 } });
       return res.data.data;
     },
-    enabled: debouncedSearch.length >= 2 && !selectedPatient,
+    enabled: debouncedSearch.length >= 1 && !selectedPatient,
   });
 
   // Pre-load patient if patientId is in URL
@@ -138,14 +138,17 @@ export function NewAppointmentPage() {
                     onFocus={() => setShowPatientDropdown(true)}
                     onBlur={() => setTimeout(() => setShowPatientDropdown(false), 200)}
                   />
-                  {showPatientDropdown && (patientResults ?? []).length > 0 && (
+                  {showPatientDropdown && debouncedSearch.length >= 1 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-                      {(patientResults ?? []).map((p) => (
+                      {(patientResults ?? []).length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-muted-foreground">No patients found — try name, UHID or phone</p>
+                      ) : (patientResults ?? []).map((p) => (
                         <button
                           key={p._id}
                           type="button"
                           className="w-full text-left px-4 py-2.5 hover:bg-muted/50 transition-colors border-b last:border-b-0"
-                          onClick={() => { setSelectedPatient(p); setValue('patientId', p._id); setShowPatientDropdown(false); }}
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => { setSelectedPatient(p); setValue('patientId', p._id, { shouldValidate: true }); setShowPatientDropdown(false); }}
                         >
                           <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
                           <p className="text-xs text-muted-foreground">{p.uhid} · {p.phone}</p>
@@ -155,7 +158,7 @@ export function NewAppointmentPage() {
                   )}
                 </div>
               )}
-              {errors.patientId && <p className="mt-1 text-xs text-red-600">{errors.patientId.message}</p>}
+              {errors.patientId && <p className="mt-1 text-xs text-red-600">Please search and select a patient from the dropdown</p>}
             </div>
 
             {/* Doctor */}

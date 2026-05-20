@@ -53,7 +53,7 @@ function NewLabOrderDialog({ onClose }: { onClose: () => void }) {
       const res = await api.get<{ data: Patient[] }>('/patients', { params: { q: debouncedPatient, limit: 8 } });
       return res.data.data;
     },
-    enabled: debouncedPatient.length >= 2 && !selectedPatient,
+    enabled: debouncedPatient.length >= 1 && !selectedPatient,
   });
 
   const { data: doctors } = useQuery({
@@ -140,11 +140,14 @@ function NewLabOrderDialog({ onClose }: { onClose: () => void }) {
                 onFocus={() => setShowPatientDrop(true)}
                 onBlur={() => setTimeout(() => setShowPatientDrop(false), 200)}
               />
-              {showPatientDrop && (patientResults ?? []).length > 0 && (
+              {showPatientDrop && debouncedPatient.length >= 1 && (
                 <div className="absolute z-20 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-                  {(patientResults ?? []).map((p) => (
+                  {(patientResults ?? []).length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-muted-foreground">No patients found — try name, UHID or phone</p>
+                  ) : (patientResults ?? []).map((p) => (
                     <button key={p._id} type="button"
                       className="w-full text-left px-4 py-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
+                      onMouseDown={(e) => e.preventDefault()}
                       onClick={() => { setSelectedPatient(p); setShowPatientDrop(false); }}>
                       <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
                       <p className="text-xs text-muted-foreground">{p.uhid} · {p.phone}</p>

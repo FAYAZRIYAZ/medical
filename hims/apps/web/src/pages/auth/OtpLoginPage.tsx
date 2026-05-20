@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Phone, ArrowRight } from 'lucide-react';
 import { useMutation } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -23,23 +23,24 @@ export function OtpLoginPage() {
   const [step, setStep] = useState<'phone' | 'otp'>('phone');
   const [phone, setPhone] = useState('');
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser, setAccessToken } = useAuthStore();
 
   const phoneForm = useForm<PhoneInput>({ resolver: zodResolver(PhoneSchema) });
   const otpForm = useForm<OtpInput>({ resolver: zodResolver(OtpSchema) });
 
   const sendOtp = useMutation({
-    mutationFn: (data: PhoneInput) => api.post('/auth/otp/send', data),
+    mutationFn: (data: PhoneInput) => api.post('/auth/login/otp/send', data),
     onSuccess: (_, vars) => { setPhone(vars.phone); setStep('otp'); toast.success('OTP sent'); },
   });
 
   const verifyOtp = useMutation({
-    mutationFn: (data: OtpInput) => api.post<{ success: boolean; data: { accessToken: string; user: UserProfile } }>('/auth/otp/verify', { phone, otp: data.otp }),
+    mutationFn: (data: OtpInput) => api.post<{ success: boolean; data: { accessToken: string; user: UserProfile } }>('/auth/login/otp/verify', { phone, otp: data.otp }),
     onSuccess: async (res) => {
       setAccessToken(res.data.data.accessToken);
       setUser(res.data.data.user);
       toast.success('Welcome!');
-      navigate('/dashboard');
+      navigate(searchParams.get('redirect') ?? '/dashboard');
     },
   });
 

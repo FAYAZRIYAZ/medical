@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { toast } from 'sonner';
 import { api } from '@/lib/api';
 import { useAuthStore } from '@/store/auth.store';
@@ -23,6 +23,7 @@ export function useMe() {
 
 export function useLogin() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { setUser, setAccessToken, setRequires2fa } = useAuthStore();
   const qc = useQueryClient();
 
@@ -41,7 +42,7 @@ export function useLogin() {
         setUser(meRes.data.data);
         void qc.invalidateQueries({ queryKey: ['auth'] });
         toast.success('Welcome back!');
-        navigate('/dashboard');
+        navigate(searchParams.get('redirect') ?? '/dashboard');
       }
     },
     onError: () => {

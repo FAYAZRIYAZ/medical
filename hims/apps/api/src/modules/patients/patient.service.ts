@@ -75,21 +75,19 @@ export class PatientService {
     const filter: Record<string, unknown> = { tenantId, isActive: true };
 
     if (q) {
-      // Use text index for fast full-text search
-      if (/^\d+$/.test(q)) {
-        filter['$or'] = [
-          { phone: { $regex: q, $options: 'i' } },
-          { uhid: { $regex: q, $options: 'i' } },
-        ];
-      } else {
-        filter['$text'] = { $search: q };
-      }
+      filter['$or'] = [
+        { firstName: { $regex: q, $options: 'i' } },
+        { lastName: { $regex: q, $options: 'i' } },
+        { phone: { $regex: q, $options: 'i' } },
+        { uhid: { $regex: q, $options: 'i' } },
+        { email: { $regex: q, $options: 'i' } },
+      ];
     }
     if (gender) filter['gender'] = gender;
     if (bloodGroup) filter['bloodGroup'] = bloodGroup;
 
     const sortDir = sortOrder === 'asc' ? 1 : -1;
-    const sortField = q && !(/^\d+$/.test(q)) ? { score: { $meta: 'textScore' } } : { [sortBy]: sortDir };
+    const sortField = { [sortBy]: sortDir };
 
     const [total, patients] = await Promise.all([
       PatientModel.countDocuments(filter),

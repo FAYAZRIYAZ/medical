@@ -19,7 +19,11 @@ router.get('/tests', requirePermission('lab_order:read'), async (req: Request, r
   const p = parseInt(page, 10);
   const l = parseInt(limit, 10);
   const filter: Record<string, unknown> = { tenantId: req.tenantId, isActive: true };
-  if (q) filter['$text'] = { $search: q };
+  if (q) filter['$or'] = [
+    { name: { $regex: q, $options: 'i' } },
+    { code: { $regex: q, $options: 'i' } },
+    { sampleType: { $regex: q, $options: 'i' } },
+  ];
 
   const [total, tests] = await Promise.all([
     LabTestModel.countDocuments(filter),

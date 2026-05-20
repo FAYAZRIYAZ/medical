@@ -74,7 +74,7 @@ export function NewInvoicePage() {
       const res = await api.get<{ data: Patient[] }>('/patients', { params: { q: debouncedSearch, limit: 8 } });
       return res.data.data;
     },
-    enabled: debouncedSearch.length >= 2 && !selectedPatient,
+    enabled: debouncedSearch.length >= 1 && !selectedPatient,
   });
 
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
@@ -146,14 +146,17 @@ export function NewInvoicePage() {
                     onFocus={() => setShowDropdown(true)}
                     onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
                   />
-                  {showDropdown && (patientResults ?? []).length > 0 && (
+                  {showDropdown && debouncedSearch.length >= 1 && (
                     <div className="absolute z-10 w-full mt-1 bg-white border rounded-lg shadow-lg overflow-hidden">
-                      {(patientResults ?? []).map((p) => (
+                      {(patientResults ?? []).length === 0 ? (
+                        <p className="px-4 py-3 text-sm text-muted-foreground">No patients found — try name, UHID or phone</p>
+                      ) : (patientResults ?? []).map((p) => (
                         <button key={p._id} type="button"
                           className="w-full text-left px-4 py-2.5 hover:bg-muted/50 border-b last:border-b-0 transition-colors"
+                          onMouseDown={(e) => e.preventDefault()}
                           onClick={() => {
                             setSelectedPatient(p);
-                            setValue('patientId', p._id);
+                            setValue('patientId', p._id, { shouldValidate: true });
                             setShowDropdown(false);
                           }}>
                           <p className="text-sm font-medium">{p.firstName} {p.lastName}</p>
@@ -164,7 +167,7 @@ export function NewInvoicePage() {
                   )}
                 </div>
               )}
-              {errors.patientId && <p className="mt-1 text-xs text-red-600">{errors.patientId.message}</p>}
+              {errors.patientId && <p className="mt-1 text-xs text-red-600">Please search and select a patient from the dropdown</p>}
             </div>
           </CardContent>
         </Card>

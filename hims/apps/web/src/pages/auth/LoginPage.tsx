@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Link } from 'react-router-dom';
-import { Eye, EyeOff, LogIn } from 'lucide-react';
+import { Link, useSearchParams } from 'react-router-dom';
+import { Eye, EyeOff, LogIn, Calendar } from 'lucide-react';
 import { useState } from 'react';
 import { LoginSchema, type LoginInput } from '@hims/shared';
 import { useLogin } from '@/hooks/useAuth';
@@ -11,6 +11,8 @@ import { Input } from '@/components/ui/input';
 export function LoginPage() {
   const [showPwd, setShowPwd] = useState(false);
   const { mutate: login, isPending } = useLogin();
+  const [searchParams] = useSearchParams();
+  const isBookingRedirect = (searchParams.get('redirect') ?? '').includes('appointments');
 
   const {
     register,
@@ -33,7 +35,9 @@ export function LoginPage() {
             <p className="text-sm text-gray-500 mt-1">Hospital Information & Management System</p>
           </div>
 
-          <h2 className="mb-6 text-xl font-semibold text-gray-800">Sign in to your account</h2>
+          <h2 className="mb-6 text-xl font-semibold text-gray-800">
+            {isBookingRedirect ? 'Sign in to book your appointment' : 'Sign in to your account'}
+          </h2>
 
           <form onSubmit={handleSubmit((data) => login(data))} className="space-y-5">
             <div>
@@ -81,6 +85,15 @@ export function LoginPage() {
             Patient?{' '}
             <Link to="/auth/login-otp" className="text-medical-blue hover:underline font-medium">Login with OTP</Link>
           </div>
+
+          {/* Book appointment shortcut */}
+          <Link
+            to="/auth/login-otp?redirect=/appointments/new"
+            className="mt-3 flex items-center justify-center gap-2 rounded-lg border border-medical-blue/30 bg-blue-50 px-4 py-2.5 text-sm font-medium text-medical-blue hover:bg-blue-100 transition-colors"
+          >
+            <Calendar className="h-4 w-4" />
+            Book an Appointment
+          </Link>
 
           {/* Demo credentials hint */}
           <div className="mt-6 rounded-lg bg-blue-50 p-4 text-xs text-blue-700">
